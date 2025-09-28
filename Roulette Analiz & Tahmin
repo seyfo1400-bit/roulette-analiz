@@ -1,0 +1,99 @@
+import streamlit as st
+import pandas as pd
+from collections import Counter
+
+st.set_page_config(page_title="Roulette Analiz ve Tahmin", layout="wide")
+st.title("🎲 Profesyonel Roulette Analiz ve Tahmin")
+
+# ---------- Sayıları Al ----------
+numbers_input = st.text_area("Sayıları gir (virgülle, alt alta veya boşlukla ayırabilirsin):")
+
+# ---------- Renk ve Bölge Verileri ----------
+red_numbers = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
+black_numbers = {2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35}
+
+# Bölge: 1-12, 13-24, 25-36
+def get_zone(n):
+    if n == 0:
+        return "0"
+    elif 1 <= n <= 12:
+        return "1. Bölge"
+    elif 13 <= n <= 24:
+        return "2. Bölge"
+    elif 25 <= n <= 36:
+        return "3. Bölge"
+    else:
+        return "Bilinmiyor"
+
+def get_color(n):
+    if n == 0: return "🟢 Yeşil"
+    elif n in red_numbers: return "🔴 Kırmızı"
+    elif n in black_numbers: return "⚫ Siyah"
+    else: return "❓"
+
+# ---------- Veri İşleme ----------
+if numbers_input:
+    # Sayıları temizle
+    numbers = [int(x) for x in numbers_input.replace("\n", ",").replace(" ", "").split(",") if x.strip().isdigit()]
+    df = pd.DataFrame(numbers, columns=["Sayı"])
+    df["Renk"] = df["Sayı"].apply(get_color)
+    df["Bölge"] = df["Sayı"].apply(get_zone)
+
+    # ---------- Son 20 Sayı ----------
+    st.subheader("📌 Son Girilen 20 Sayı")
+    st.write(df.tail(20))
+
+    # ---------- Genel İstatistik ----------
+    st.subheader("📊 Genel İstatistikler")
+    color_counts = df["Renk"].value_counts().reindex(["🔴 Kırmızı", "⚫ Siyah", "🟢 Yeşil"]).fillna(0).astype(int)
+    zone_counts = df["Bölge"].value_counts().reindex(["1. Bölge","2. Bölge","3. Bölge","0"]).fillna(0).astype(int)
+    st.table(pd.DataFrame({"Renk": color_counts.index, "Adet": color_counts.values}))
+    st.table(pd.DataFrame({"Bölge": zone_counts.index, "Adet": zone_counts.values}))
+
+    # ---------- En Çok Gelen 3 Sayı ----------
+    top_numbers = df["Sayı"].value_counts().head(3)
+    st.subheader("🎯 En Yüksek Olasılıklı 3 Sayı")
+    top_df = pd.DataFrame({
+        "Sayı": top_numbers.index,
+        "Geliş Sayısı": top_numbers.values,
+        "Renk": [get_color(n) for n in top_numbers.index],
+        "Bölge": [get_zone(n) for n in top_numbers.index]
+    })
+    st.table(top_df)
+
+    # ---------- Belirli Sayının Ardından Gelenler ----------
+    selected_number = st.number_input("Bir sayı seç (hangi sayının ardından ne gelmiş görmek için):", 0, 36, 0)
+    following = [numbers[i+1] for i in range(len(numbers)-1) if numbers[i] == selected_number]
+
+    if following:
+        st.subheader(f"🔎 {selected_number} sayısından sonra gelen sayılar")
+        follow_counts = pd.Series(following).value_counts().reset_index()
+        follow_counts.columns = ["Sayı", "Geliş Sayısı"]
+        follow_counts["Renk"] = follow_counts["Sayı"].apply(get_color)
+        follow_counts["Bölge"] = follow_counts["Sayı"].apply(get_zone)
+        st.table(follow_counts)
+        st.bar_chart(follow_counts.set_index("Sayı")["Geliş Sayısı"])
+    else:
+        st.info("Bu sayı hiç gelmemiş veya ardından başka sayı yok.")
+
+    # ---------- Tahmin (Basit Olasılık) ----------
+    st.subheader("🧠 Tahmin: Son sayı dizisine göre olası 3 sayı")
+    if numbers:
+        last_number = numbers[-1]
+        next_numbers = [numbers[i+1] for i in range(len(numbers)-1) if numbers[i]==last_number]
+        if next_numbers:
+            counter = Counter(next_numbers)
+            most_common = counter.most_common(3)
+        else:
+            most_common = [(n,0) for n in range(1,4)]  # Eğer veri yoksa rastgele placeholder
+        predict_df = pd.DataFrame({
+            "Tahmin Sayısı": [n[0] for n in most_common],
+            "Tahmin Sıklığı": [n[1] for n in most_common],
+            "Renk": [get_color(n[0]) for n in most_common],
+            "Bölge": [get_zone(n[0]) for n in most_common]
+        })
+        st.table(predict_df)
+    else:
+        st.info("Tahmin için yeterli veri yok.")
+else:
+    st.info("Lütfen en az 1 sayı gir.")
