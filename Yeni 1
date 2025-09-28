@@ -1,0 +1,67 @@
+import streamlit as st
+import pandas as pd
+from collections import Counter
+
+st.set_page_config(page_title="Roulette Profesyonel Tahmin", layout="wide")
+st.title("🎲 Roulette Profesyonel Analiz & Tahmin")
+
+# ---------- Sayı Girişi ----------
+numbers_input = st.text_area("Sayıları gir (virgülle, alt alta veya boşlukla ayırabilirsin):")
+
+# ---------- Renk ve Bölge Verileri ----------
+red_numbers = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
+black_numbers = {2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35}
+
+def get_color(n):
+    if n == 0: return "🟢 Yeşil"
+    elif n in red_numbers: return "🔴 Kırmızı"
+    elif n in black_numbers: return "⚫ Siyah"
+    else: return "❓"
+
+def get_zone(n):
+    if n == 0: return "0"
+    elif 1 <= n <= 12: return "1. Bölge"
+    elif 13 <= n <= 24: return "2. Bölge"
+    elif 25 <= n <= 36: return "3. Bölge"
+    else: return "Bilinmiyor"
+
+# ---------- Veri İşleme ----------
+if numbers_input:
+    numbers = [int(x) for x in numbers_input.replace("\n", ",").replace(" ", "").split(",") if x.strip().isdigit()]
+    df = pd.DataFrame(numbers, columns=["Sayı"])
+    df["Renk"] = df["Sayı"].apply(get_color)
+    df["Bölge"] = df["Sayı"].apply(get_zone)
+
+    st.subheader("📌 Son 20 Girilen Sayı")
+    st.write(df.tail(20))
+
+    # ---------- Belirli sayıdan sonra gelenler ----------
+    selected_number = st.number_input("Tahmin için bir sayı seç:", 0, 36, 10)
+    following = [numbers[i+1] for i in range(len(numbers)-1) if numbers[i] == selected_number]
+
+    if following:
+        st.subheader(f"🔎 {selected_number} sayısından sonra gelen sayılar")
+        follow_counts = pd.Series(following).value_counts().reset_index()
+        follow_counts.columns = ["Sayı", "Geliş Sayısı"]
+        follow_counts["Renk"] = follow_counts["Sayı"].apply(get_color)
+        follow_counts["Bölge"] = follow_counts["Sayı"].apply(get_zone)
+        st.table(follow_counts)
+        st.bar_chart(follow_counts.set_index("Sayı")["Geliş Sayısı"])
+
+        # ---------- Tahmin: en olası 3 sayı ----------
+        counter = Counter(following)
+        most_common = counter.most_common(3)
+        predict_df = pd.DataFrame({
+            "Tahmin Sayısı": [n[0] for n in most_common],
+            "Tahmin Sıklığı": [n[1] for n in most_common],
+            "Renk": [get_color(n[0]) for n in most_common],
+            "Bölge": [get_zone(n[0]) for n in most_common]
+        })
+        st.subheader("🧠 Tahmin: En olası 3 sayı")
+        st.table(predict_df)
+
+    else:
+        st.info(f"{selected_number} sayısından sonra hiç sayı gelmemiş.")
+
+else:
+    st.info("Lütfen en az 1 sayı gir.")
